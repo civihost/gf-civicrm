@@ -1,17 +1,15 @@
 <?php
 /**
- * Plugin Name:     Cf Civicrm
- * Plugin URI:      PLUGIN SITE HERE
- * Description:     PLUGIN DESCRIPTION HERE
- * Author:          YOUR NAME HERE
- * Author URI:      YOUR SITE HERE
- * Text Domain:     cf-civicrm
- * Domain Path:     /languages
- * Version:         0.1.0
- *
- * @package         Cf_Civicrm
+ * Plugin Name: GF CiviCRM
+ * Description: CiviCRM integration for Gravity Forms and Elementor PRO.
+ * Version: 0.1.0
+ * Author: Samuele Masetto
+ * Author URI: https://github.com/civihost
+ * Plugin URI: https://github.com/civihost/gf-civicrm
+ * GitHub Plugin URI: civihost/gf-civicrm
+ * Text Domain: gf-civicrm
+ * Domain Path: /languages
  */
-
 require_once  __DIR__  . '/vendor/autoload.php';
 
 use Symfony\Component\Yaml\Parser;
@@ -67,7 +65,7 @@ add_action( 'elementor_pro/forms/new_record', function($record, $handler) use($s
 }, 10, 2 );
 
 /**
- * Gravity Forms Paypal filter to change IPN and create contact and contribution in CiviCRM 
+ * Gravity Forms Paypal filter to change IPN and create contact and contribution in CiviCRM
  */
 add_filter('gform_paypal_request', function ($url, $form, $entry) use($settings) {
 
@@ -84,7 +82,7 @@ add_filter('gform_paypal_request', function ($url, $form, $entry) use($settings)
     //parse querystring into pieces
     parse_str( $query, $qs_param );
     $qs_param['notify_url'] = $settings['paypal_ipn']; // update notify_url querystring parameter to new value
-        
+
     $contribution = createContactFromGF($entry, $form_settings, 'paypal');
     if ($contribution) {
         $qs_param['custom'] = json_encode($contribution);
@@ -165,7 +163,7 @@ add_action('gform_post_subscription_started', function($entry, $subscription) us
         $contact = civicrm_api3('Contact', 'create', $params);
         $contact = array_values($contact['values'])[0];
         $params = [
-            'subscription' => $subscription['subscription_id'], 
+            'subscription' => $subscription['subscription_id'],
             'contact_id' => $contact['id'],
             'ppid' => $form_settings['contribution']['stripe']['payment_processor_id'],
             'financial_type_id' => $form_settings['contribution']['financial_type_id'],
@@ -175,11 +173,11 @@ add_action('gform_post_subscription_started', function($entry, $subscription) us
         error_log('Stripe import subscription: ' . print_r($params, true));
 
         civicrm_api3('Stripe', 'importsubscription', $params);
-    
+
     } catch (CiviCRM_API3_Exception $e) {
         $error = $e->getMessage();
         error_log('Errore CiviCRM: ' . print_r($error, true));
-    }    
+    }
 }, 10, 2);
 
 /*
@@ -247,7 +245,7 @@ function createContactFromGF($entry, $config, $instrument = 'paypal', $action = 
                     'financial_type_id' =>  $config['contribution']['financial_type_id'],
                     'payment_instrument_id' => $config['contribution'][$instrument]['payment_instrument_id'],
                     'payment_processor_id' => $config['contribution'][$instrument]['payment_processor_id'],
-                ];                
+                ];
             }
 
         }
@@ -270,7 +268,7 @@ function createContactFromGF($entry, $config, $instrument = 'paypal', $action = 
 
     }
 
-    // {"module":"contribute","contactID":"{contactId}","contributionID":{contributionId},"contributionRecurID":{contributionRecurId}}   
+    // {"module":"contribute","contactID":"{contactId}","contributionID":{contributionId},"contributionRecurID":{contributionRecurId}}
 
     error_log('Parametri CiviCRM: ' . print_r($params, true));
 
@@ -331,7 +329,7 @@ function getContactIdFromEmail($email) {
             $contacts = array_values($contacts['values']);
             $contact_id = $contacts[0]['contact_id'];
         }
-        return $contact_id;    
+        return $contact_id;
     } catch (CiviCRM_API3_Exception $e) {
        $error = $e->getMessage();
     }

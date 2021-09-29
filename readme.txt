@@ -1,4 +1,4 @@
-=== Cf Civicrm ===
+=== GF CiviCRM ===
 Contributors: masetto
 Donate link: https://civihost.it
 Tags: gravity forms, civicrm, donation, contribution, recurring contribution
