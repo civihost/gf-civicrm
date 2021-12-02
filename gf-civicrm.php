@@ -117,40 +117,19 @@ add_filter('gform_stripe_session_data', function($session_data, $feed, $submissi
     return $session_data;
 }, 10, 5);
 
-/*
-add_filter( 'gform_stripe_payment_intent_pre_create', 'add_statement_descriptor', 10, 2 );
-function add_statement_descriptor( $data, $feed ) {
-    error_log('stripe payment intent:' . print_r($data, true));
-    return $data;
-}
-*/
-/*
-add_filter( 'gform_stripe_webhook', 'stripe_webhook_custom_action', 10, 2 );
-function stripe_webhook_custom_action( $action, $event ) {
-    $type = rgar( $event, 'type' );
-    error_log('stripe type event:' . print_r($type, true));
-    error_log('stripe event:' . print_r($event, true));
-    error_log('stripe action:' . print_r($action, true));
-    return $action;
-}
-*/
-
-
 /**
+ * Triggers when a payment has been completed through the form
  * Gravity Forms Stripe filter fired when **single payment was performed**
  * Creates CiviCRM contact and contribution
  */
 add_action('gform_post_payment_completed', function($entry, $action) use($settings) {
-    //$form = GFAPI::get_form($entry['form_id'] );
     if (! isset($settings['gravity_forms'][$entry['form_id']])) {
-        return $url;
+        return;
     }
     $form_settings = $settings['gravity_forms'][$entry['form_id']];
 
     $contribution = createContactFromGF($entry, $form_settings, 'stripe', $action);
 
-    error_log('gform_post_payment_completed entry: ' . print_r($entry, true));
-    error_log('gform_post_payment_completed action:' . print_r($action, true));
 }, 10, 2);
 
 
@@ -180,16 +159,6 @@ add_action('gform_post_subscription_started', function($entry, $subscription) us
     }
 }, 10, 2);
 
-/*
-add_filter( 'gform_stripe_charge_pre_create', 'stripe_save_card', 10, 5 );
-function stripe_save_card( $charge_meta, $feed, $submission_data, $form, $entry ) {
-    //$charge_meta['setup_future_usage'] = 'off_session';
-    error_log('gform_stripe_charge_pre_create charge: ' . print_r($charge_meta, true));
-    error_log('gform_stripe_charge_pre_create charge: ' . print_r($submission_data, true));
-
-    return $charge_meta;
-}
-*/
 /**
  * Create a CiviCRM contact with a contribution from Gravity Form form payment with Paypal or Stripe
  *
