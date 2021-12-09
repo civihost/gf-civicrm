@@ -19,53 +19,70 @@ $settings = $yaml->parse(file_get_contents(__DIR__  . '/settings.yaml'));
 
 
 /**
+ * Elementor Pro webohooks
+ */
+
+/**
  * Elementor Pro new record webhook
  */
 add_action( 'elementor_pro/forms/new_record', function($record, $handler) use($settings) {
     //make sure its our form
     $form_name = $record->get_form_settings( 'form_name' );
+    error_log('elementor ' . $form_name);
 
-    if ( 'iscrizione' !== $form_name ) {
+    if (! isset($settings['elementor'][$form_name])) {
         return;
     }
 
-    $raw_fields = $record->get( 'fields' );
-    $fields = [];
+    $config = $settings['elementor'][$form_name];
+
+
+    $raw_fields = $record->get('fields');
+    $entry = [];
     foreach ( $raw_fields as $id => $field ) {
-        $fields[ $id ] = $field['value'];
-    }
-    //print_r($fields);
-
-    $contact_id = getContactIdFromEmail($fields['email']);
-
-    $params = [
-        'id' => $contact_id,
-        'first_name' => $fields['first_name'],
-        'last_name' => $fields['last_name'],
-    ];
-    if ($contact_id > 0) {
-        $params['api.Email.create'] = [
-                'email' => $fields['email'],
-                'contact_id' => '$value.id',
-                'is_primary' => 1,
-        ];
+        $entry[$id] = $field['value'];
     }
 
-    if (isset($fields['tag_id'])) {
-        $params['api.EntityTag.create'] = [
-            'tag_id' => $fields['tag_id'],
-            'contact_id' => '$value.id',
-        ];
-    }
+    $params = createContactParams($entry, $config);
+    error_log('elementor ' . $form_name . ' ' . print_r($params, true));
+
     try {
         $contacts = civicrm_api3('Contact', 'create', $params);
     } catch (CiviCRM_API3_Exception $e) {
         $error = $e->getMessage();
+        error_log('gf-civicrm plugin error: ' . print_r($error, true));
     }
-}, 10, 2 );
+
+}, 10, 2);
+
 
 /**
- * Gravity Forms Paypal filter to change IPN and create contact and contribution in CiviCRM
+ * GravityForms filters and actions
+ */
+
+ /**
+  * GravityForms Standard After submission
+  */
+add_action('gform_after_submission', function ($entry, $form) use($settings)  {
+    if (! isset($settings['gravity_forms'][$form['id']])) {
+        return;
+    }
+    $config = $settings['gravity_forms'][$form['id']];
+
+    $params = createContactParams($entry, $config);
+    error_log('gform_after_submission id form' . $form['id'] . ' ' . print_r($params, true));
+
+    try {
+        $contacts = civicrm_api3('Contact', 'create', $params);
+    } catch (CiviCRM_API3_Exception $e) {
+        $error = $e->getMessage();
+        error_log('gf-civicrm plugin error: ' . print_r($error, true));
+    }
+
+}, 10, 2);
+
+/**
+ * GravityForms Paypal filter to change IPN and create contact and contribution in CiviCRM
  */
 add_filter('gform_paypal_request', function ($url, $form, $entry) use($settings) {
 
@@ -102,20 +119,6 @@ add_filter('gform_paypal_request', function ($url, $form, $entry) use($settings)
     return $new_url;
 
 }, 10, 3 );
-
-// solo con stripe checkout
-add_filter('gform_stripe_session_data', function($session_data, $feed, $submission_data, $form, $entry) use($settings) {
-    if (! isset($settings['gravity_forms'][$form['id']])) {
-        return $url;
-    }
-    $form_settings = $settings['gravity_forms'][$form['id']];
-
-    error_log('stripe session data:' . print_r($session_data, true));
-    error_log('stripe feed data:' . print_r($feed, true));
-    error_log('stripe submission data:' . print_r($submission_data, true));
-
-    return $session_data;
-}, 10, 5);
 
 /**
  * Triggers when a payment has been completed through the form
@@ -155,7 +158,7 @@ add_action('gform_post_subscription_started', function($entry, $subscription) us
 
     } catch (CiviCRM_API3_Exception $e) {
         $error = $e->getMessage();
-        error_log('Errore CiviCRM: ' . print_r($error, true));
+        error_log('gf-civicrm plugin error: ' . print_r($error, true));
     }
 }, 10, 2);
 
@@ -239,11 +242,11 @@ function createContactFromGF($entry, $config, $instrument = 'paypal', $action = 
 
     // {"module":"contribute","contactID":"{contactId}","contributionID":{contributionId},"contributionRecurID":{contributionRecurId}}
 
-    error_log('Parametri CiviCRM: ' . print_r($params, true));
+    error_log('gf-civicrm plugin parameters before API call: ' . print_r($params, true));
 
     try {
         $contact = civicrm_api3('Contact', 'create', $params);
-        error_log('Esito CiviCRM: ' . print_r($contact, true));
+        error_log('gf-civicrm plugin result: ' . print_r($contact, true));
         $contact = array_values($contact['values'])[0];
         return [
             'module' => 'contribute',
@@ -253,7 +256,7 @@ function createContactFromGF($entry, $config, $instrument = 'paypal', $action = 
         ];
     } catch (CiviCRM_API3_Exception $e) {
         $error = $e->getMessage();
-        error_log('Errore CiviCRM: ' . print_r($error, true));
+        error_log('gf-civicrm plugin error: ' . print_r($error, true));
     }
 }
 
@@ -269,7 +272,6 @@ function createContactParams($entry, $config) {
     $email = $entry[$config['email']['entries']['email']];
     $contact_id = getContactIdFromEmail($email);
 
-
     $params = [
         'id' => $contact_id,
         'contact_type' => 'Individual',
@@ -278,13 +280,69 @@ function createContactParams($entry, $config) {
         $params[$name] = $entry[$e];
     }
 
-    if ($contact_id > 0) {
+    if (! $contact_id) {
         $params['api.Email.create'] = [
                 'email' => $email,
                 'contact_id' => '$value.id',
                 'is_primary' => 1,
         ];
     }
+
+    if (isset($config['tags'])) {
+        $params['api.EntityTag.create'] = [
+            'tag_id' => $config['tags'],
+            'contact_id' => '$value.id',
+        ];
+    }
+    
+    if (isset($config['activity'])) {
+        $activity = [
+            'source_contact_id' => '$value.id',
+            'activity_type_id' => $config['activity']['type'],
+            'target_id' => '$value.id',
+        ];
+        if (isset($config['activity']['entries'])) {
+            foreach($config['activity']['entries'] as $name => $e) {
+                $activity[$name] = $entry[$e];
+            }            
+        }
+        if (isset($config['activity']['subject'])) {
+            $activity['subject'] = $config['activity']['subject'];
+        }
+        if (isset($config['activity']['assignee'])) {
+            $activity['assignee_id'] = $config['activity']['assignee'];
+        }
+        if (isset($config['activity']['campaign'])) {
+            $activity['campaign_id'] = $config['activity']['campaign'];
+        }
+        if (isset($config['activity']['scheduled'])) {
+            $s = $config['activity']['scheduled'];
+            $scheduled_activity = [
+                'source_contact_id' => '[ID]',
+                'activity_type_id' => $s['type'],
+                'target_id' => '[ID]',
+                'activity_date_time' => date('Y-m-d', strtotime($s['date'])),
+                'status_id' => 'Scheduled',
+            ];
+            if (isset($s['subject'])) {
+                $scheduled_activity['subject'] = $config['activity']['subject'];
+            }
+            if (isset($s['assignee'])) {
+                $scheduled_activity['assignee_id'] = $s['assignee'];
+            }
+            if (isset($s['campaign'])) {
+                $scheduled_activity['campaign_id'] = $s['campaign'];
+            }
+            if (isset($s['entries'])) {
+                foreach($s['entries'] as $name => $e) {
+                    $scheduled_activity[$name] = $entry[$e];
+                }            
+            }
+        }
+        $params['api.activity.create'] = $activity;
+
+    }
+
     return $params;
 }
 

@@ -1,2 +1,4 @@
 /vendor
 settings.yaml
+settings.*.yaml
+!settings.example.yaml
