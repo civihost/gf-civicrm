@@ -178,6 +178,9 @@ function createContactFromGF($entry, $config, $instrument = 'paypal', $action = 
     $contribution_status = 'Pending';
     $transaction_id = '';
     if ($action) {
+        error_log('gf-civicrm plugin - completed: ' . print_r($action, true));
+        error_log('gf-civicrm plugin - completed: ' . print_r($entry, true));
+
         $invoice_id = $action['transaction_id'];
         if ($action['is_success']) {
             $contribution_status = 'Completed';
@@ -193,7 +196,7 @@ function createContactFromGF($entry, $config, $instrument = 'paypal', $action = 
 
         if (isset($config['contribution']['entries']['frequency_unit'])) {
             $frequency_unit = $entry[$config['contribution']['entries']['frequency_unit']];
-            $is_recurrent = in_array($frequency_unit, ['M', 'A', 'D']);
+            $is_recurrent = in_array($frequency_unit, ['M', 'Y', 'D']);
             if ($is_recurrent) {
                 switch($frequency_unit) {
                     case 'M':
@@ -230,6 +233,8 @@ function createContactFromGF($entry, $config, $instrument = 'paypal', $action = 
             'is_test' => $config['contribution']['is_test'],
             'financial_type_id' =>  $config['contribution']['financial_type_id'],
             'payment_instrument_id' => $config['contribution'][$instrument]['payment_instrument_id'],
+            'skipLineItem' => 1,
+            'receive_date' => current_time("YmdHis"),
         ];
         if ($is_recurrent) {
             $params['api.contribution.create']['contribution_recur_id'] = '$value.api.contribution_recur.create.id';
@@ -237,6 +242,13 @@ function createContactFromGF($entry, $config, $instrument = 'paypal', $action = 
         if ($transaction_id) {
             $params['api.contribution.create']['trxn_id'] = $transaction_id;
         }
+        
+        /*
+        // Receipt
+        $params['api.contribution.sendconfirmation'] = [
+            'id'=> '$value.api.contribution.create.id',
+        ];
+        */
 
     }
 
