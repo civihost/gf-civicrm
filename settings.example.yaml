@@ -1,4 +1,11 @@
-paypal_ipn: https://my-wp-web-site/civicrm/payment/ipn/2/
+paypal_ipn: https://my-website/civicrm/payment/ipn/2/
+
+external:
+  enabled: false
+  api_key:
+  site_key:
+  rest_url: 'https://my-website/civicrm/ajax/rest'
+
 gravity_forms:
   1:
     contact:
@@ -14,7 +21,7 @@ gravity_forms:
         amount: '5'
         frequency_unit: '16'
       financial_type_id: 1
-      source: 'Form di donazione dal sito web ACME'
+      source: 'Donation form'
       paypal:
         payment_instrument_id: 'Paypal'
         payment_processor_id: 'Paypal'
@@ -22,3 +29,31 @@ gravity_forms:
         payment_instrument_id: 1
         payment_processor_id: 4
 
+elementor:
+  contact_form:
+    contact:
+      entries:
+        first_name: 'first_name'
+        last_name: 'last_name'
+        contact_type: 'contact_type'
+        source: 'source'
+    email:
+      entries:
+        email: 'email'
+    activity:
+      type: 'Inbound Email'
+      subject: 'Website contact'
+      entries:
+        details: 'message'
+
+  newsletter_form:
+    contact:
+      entries:
+        first_name: 'first_name'
+        last_name: 'last_name'
+        contact_type: 'contact_type'
+        source: 'source'
+        do_not_email: 'do_not_email'
+    email:
+      entries:
+        email: 'email'

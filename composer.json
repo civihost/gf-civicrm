@@ -1,5 +1,8 @@
 {
     "require": {
         "symfony/yaml": "^5.3"
+    },
+    "autoload": {
+        "files": ["src/CiviCRMApiWrapper.php", "src/CiviCRM.php"]
     }
 }
