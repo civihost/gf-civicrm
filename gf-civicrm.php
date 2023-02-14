@@ -77,6 +77,7 @@ add_action('gform_after_submission', function ($entry, $form) use ($settings, $c
 
     try {
         $contacts = $civicrm->apiWrapper->civicrm_api3('Contact', 'create', $params);
+        $civicrm::log('gform_after_submission result id form' . $form['id'] . ' ' . print_r($contacts, true));
     } catch (\Exception $e) {
         $error = $e->getMessage();
         $civicrm::log('gf-civicrm plugin error: ' . print_r($error, true));

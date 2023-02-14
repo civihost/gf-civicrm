@@ -149,9 +149,40 @@ class CiviCRM
 
         if (isset($config['tags'])) {
             $params['api.EntityTag.create'] = [
-                'tag_id' => $config['tags'],
+                'tag_id' => [],
                 'contact_id' => '$value.id',
             ];
+            if (isset($config['tags']['entries'])) {
+                $tags = [];
+                foreach ($config['grtagsoups']['entries'] as $name => $e) {
+                    if ($entry[$e]) {
+                      $tags[] = $entry[$e];
+                    }
+                }
+                $params['api.EntityTag.create']['tag_id'] = array_merge($params['api.EntityTag.create']['group_id'], $tags);
+            }
+            if (isset($config['tags']['values'])) {
+                $params['api.EntityTag.create']['tag_id'] = array_merge($params['api.EntityTag.create']['tag_id'], $config['tags']['values']);
+            }
+        }
+
+        if (isset($config['groups'])) {
+            $params['api.GroupContact.create'] = [
+                'group_id' => [],
+                'contact_id' => '$value.id',
+            ];
+            if (isset($config['groups']['entries'])) {
+                $groups = [];
+                foreach ($config['groups']['entries'] as $name => $e) {
+                    if ($entry[$e]) {
+                      $groups[] = $entry[$e];
+                    }
+                }
+                $params['api.GroupContact.create']['group_id'] = array_merge($params['api.GroupContact.create']['group_id'], $groups);
+            }
+            if (isset($config['groups']['values'])) {
+                $params['api.GroupContact.create']['group_id'] = array_merge($params['api.GroupContact.create']['group_id'], $config['groups']['values']);
+            }
         }
 
         if (isset($config['activity'])) {

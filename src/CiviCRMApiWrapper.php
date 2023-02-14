@@ -53,12 +53,16 @@ class CiviCRMApiWrapper
             if (curl_errno($ch)) {
                 throw new \Exception(curl_error($ch));
             } else {
-                return json_decode($data, true);
+                $result = json_decode($data, true);
             }
             curl_close($ch);
         } else {
-            return civicrm_api3($entity, $action, $params);
+            $result = civicrm_api3($entity, $action, $params);
         }
+        if ($result['is_error']) {
+            throw new \Exception(print_r($result, true));
+        }
+        return $result;
     }
 
     /*
