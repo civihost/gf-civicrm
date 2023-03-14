@@ -4,11 +4,11 @@ namespace GFCiviCRM;
 
 class CiviCRMApiWrapper
 {
-    protected bool $is_external = false;
+    protected $is_external = false;
 
-    protected ?string $api_key;
-    protected ?string $site_key;
-    protected ?string $rest_url;
+    protected $api_key;
+    protected $site_key;
+    protected $rest_url;
 
     public function __construct(array $settings)
     {
