@@ -185,6 +185,23 @@ class CiviCRM
             }
         }
 
+        // MailingEventSubscribe.create API - only one group id
+        if (isset($config['subscribe'])) {
+            $params['api.MailingEventSubscribe.create'] = [
+                'group_id' => [],
+                'contact_id' => '$value.id',
+                'email' => $email,
+            ];
+            if (isset($config['subscribe']['entry'])) {
+                if ($entry[$config['groups']['entry']]) {
+                    $params['api.MailingEventSubscribe.create']['group_id'] = $entry[$config['groups']['entry']];
+                }
+            }
+            if (isset($config['subscribe']['value'])) {
+                $params['api.MailingEventSubscribe.create']['group_id'] = $config['subscribe']['value'];
+            }
+        }
+
         if (isset($config['activity'])) {
             $activity = [
                 'source_contact_id' => '$value.id',

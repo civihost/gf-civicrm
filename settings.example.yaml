@@ -28,6 +28,9 @@ gravity_forms:
       entries:
         - '9.1'
         - '9.2'
+    subscribe:
+      value: 26
+      entry: '10'
     contribution:
       is_test: 1
       entries:
