@@ -147,22 +147,48 @@ class CiviCRM
             ];
         }
 
-        if (isset($config['tags'])) {
-            $params['api.EntityTag.create'] = [
-                'tag_id' => [],
+        if (isset($config['phone'])) {
+            $phone = [
                 'contact_id' => '$value.id',
             ];
+            if (isset($config['phone']['entries'])) {
+                foreach ($config['phone']['entries'] as $name => $e) {
+                    $phone[$name] = $entry[$e];
+                }
+            }
+            if (isset($config['phone']['phone_type_id'])) {
+                $phone['phone_type_id'] = $config['phone']['phone_type_id'];
+            }
+            if (isset($config['phone']['is_primary'])) {
+                $phone['is_primary'] = $config['phone']['is_primary'];
+            }
+            if (isset($config['phone']['location_type_id'])) {
+                $phone['location_type_id'] = $config['phone']['location_type_id'];
+            }
+            $params['api.Phone.create'] = $phone;
+        }
+
+        if (isset($config['tags'])) {
+            $tags = [];
             if (isset($config['tags']['entries'])) {
-                $tags = [];
                 foreach ($config['grtagsoups']['entries'] as $name => $e) {
-                    if ($entry[$e]) {
-                      $tags[] = $entry[$e];
+                    if ($entry[$e] && !$this->tagExists($contact_id, $entry[$e])) {
+                        $tags[] = $entry[$e];
                     }
                 }
-                $params['api.EntityTag.create']['tag_id'] = array_merge($params['api.EntityTag.create']['group_id'], $tags);
             }
             if (isset($config['tags']['values'])) {
-                $params['api.EntityTag.create']['tag_id'] = array_merge($params['api.EntityTag.create']['tag_id'], $config['tags']['values']);
+                foreach($config['tags']['values'] as $tagId) {
+                    if (!$this->tagExists($contact_id, $tagId)) {
+                        $tags[] = $tagId;
+                    }
+                }
+            }
+            if (count($tags) > 0) {
+                $params['api.EntityTag.create'] = [
+                    'tag_id' => $tags,
+                    'contact_id' => '$value.id',
+                ];
             }
         }
 
@@ -175,7 +201,7 @@ class CiviCRM
                 $groups = [];
                 foreach ($config['groups']['entries'] as $name => $e) {
                     if ($entry[$e]) {
-                      $groups[] = $entry[$e];
+                        $groups[] = $entry[$e];
                     }
                 }
                 $params['api.GroupContact.create']['group_id'] = array_merge($params['api.GroupContact.create']['group_id'], $groups);
@@ -277,5 +303,20 @@ class CiviCRM
                 error_log($message);
             }
         }
+    }
+
+    public function tagExists($entityId, $tagId, $entityTable = 'Contact'): bool
+    {
+        if (!$entityId) {
+            return false;
+        }
+
+        $exists = $this->apiWrapper->civicrm_api3('EntityTag', 'get', [
+            'entity_id'    => $entityId,
+            'entity_table' => $entityTable,
+            'tag_id'       => $tagId,
+        ]);
+
+        return $exists['count'] > 0;
     }
 }
