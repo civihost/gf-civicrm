@@ -14,9 +14,9 @@
 
 namespace GFCiviCRM;
 
-require_once  __DIR__  . '/vendor/autoload.php';
+require_once __DIR__  . '/vendor/autoload.php';
 
-use \Symfony\Component\Yaml\Parser;
+use Symfony\Component\Yaml\Parser;
 
 $yaml = new Parser();
 $settings = $yaml->parse(file_get_contents(__DIR__  . '/settings.yaml'));
@@ -35,12 +35,11 @@ add_action('elementor_pro/forms/new_record', function ($record, $handler) use ($
     $form_name = $record->get_form_settings('form_name');
     $civicrm::log('elementor ' . $form_name);
 
-    if (!isset($settings['elementor'][$form_name])) {
+    if (! isset($settings['elementor'][$form_name])) {
         return;
     }
 
     $config = $settings['elementor'][$form_name];
-
 
     $raw_fields = $record->get('fields');
     $entry = [];
@@ -67,7 +66,7 @@ add_action('elementor_pro/forms/new_record', function ($record, $handler) use ($
  * GravityForms Standard After submission
  */
 add_action('gform_after_submission', function ($entry, $form) use ($settings, $civicrm) {
-    if (!isset($settings['gravity_forms'][$form['id']])) {
+    if (! isset($settings['gravity_forms'][$form['id']])) {
         return;
     }
     $config = $settings['gravity_forms'][$form['id']];
@@ -84,12 +83,56 @@ add_action('gform_after_submission', function ($entry, $form) use ($settings, $c
     }
 }, 10, 2);
 
+add_filter('gform_pre_render', function ($form) use ($settings, $civicrm) {
+    // Verifico che il form sia configurato nel plugin
+    if (! isset($settings['gravity_forms'][$form['id']])) {
+        return $form;
+    }
+
+    $config = $settings['gravity_forms'][$form['id']];
+    if (isset($config['address'])) {
+        $form = $civicrm->setCountries($form, $config['address']);
+    }
+    return $form;
+}, 998);
+
+add_filter('gform_register_init_scripts', function ($form) use ($settings, $civicrm) {
+    // Verifico che il form sia configurato nel plugin
+    if (! isset($settings['gravity_forms'][$form['id']])) {
+        return $form;
+    }
+
+    $config = $settings['gravity_forms'][$form['id']];
+    if (isset($config['address'])) {
+        $form = $civicrm->countriesInitScript($form, $config['address']);
+    }
+    return $form;
+}, 998);
+
+add_action('wp_ajax_gfcivicrm_provinces', function () use ($civicrm) {
+    if (isset($_POST['country'])) {
+        $choices = $civicrm->ajaxProvinces($_POST['country']);
+        wp_send_json_success($choices);
+    } else {
+        wp_send_json_error('Parametri non corretti');
+    }
+});
+
+add_action('wp_ajax_nopriv_gfcivicrm_provinces', function () use ($civicrm) {
+    if (isset($_POST['country'])) {
+        $choices = $civicrm->ajaxProvinces($_POST['country']);
+        wp_send_json_success($choices);
+    } else {
+        wp_send_json_error('Parametri non corretti');
+    }
+});
+
 /**
  * GravityForms Paypal filter to change IPN and create contact and contribution in CiviCRM
  */
 add_filter('gform_paypal_request', function ($url, $form, $entry) use ($settings, $civicrm) {
 
-    if (!isset($settings['gravity_forms'][$form['id']])) {
+    if (! isset($settings['gravity_forms'][$form['id']])) {
         return $url;
     }
     $form_settings = $settings['gravity_forms'][$form['id']];
@@ -128,14 +171,13 @@ add_filter('gform_paypal_request', function ($url, $form, $entry) use ($settings
  * Creates CiviCRM contact and contribution
  */
 add_action('gform_post_payment_completed', function ($entry, $action) use ($settings, $civicrm) {
-    if (!isset($settings['gravity_forms'][$entry['form_id']])) {
+    if (! isset($settings['gravity_forms'][$entry['form_id']])) {
         return;
     }
     $form_settings = $settings['gravity_forms'][$entry['form_id']];
 
     $contribution = $civicrm->createContactFromGF($entry, $form_settings, 'stripe', $action);
 }, 10, 2);
-
 
 add_action('gform_post_subscription_started', function ($entry, $subscription) use ($settings, $civicrm) {
     $civicrm::log('gform_post_add_subscription_payment entry: ' . print_r($entry, true));

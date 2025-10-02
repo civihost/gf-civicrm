@@ -20,7 +20,7 @@ class CiviCRM
      * @param array|void $action The action that occurred
      * @return void
      */
-    function createContactFromGF($entry, $config, $instrument = 'paypal', $action = null)
+    public function createContactFromGF($entry, $config, $instrument = 'paypal', $action = null)
     {
 
         $params = $this->createContactParams($entry, $config);
@@ -91,6 +91,15 @@ class CiviCRM
             if ($transaction_id) {
                 $params['api.contribution.create']['trxn_id'] = $transaction_id;
             }
+            if (isset($config['contribution']['source'])) {
+                $params['api.contribution.create']['source'] = $config['contribution']['source'];
+            }
+
+            foreach ($config['contribution']['entries'] as $name => $e) {
+                if (! empty($entry[$e]) && ! in_array($name, ['amount', 'frequency_unit'])) {
+                    $params['api.contribution.create'][$name] = $entry[$e];
+                }
+            }
 
             /*
         // Receipt
@@ -118,7 +127,6 @@ class CiviCRM
         }
     }
 
-
     /**
      * Get the array to create a CiviCRM contact from Gravity Forms form
      *
@@ -136,10 +144,12 @@ class CiviCRM
             'contact_type' => 'Individual',
         ];
         foreach ($config['contact']['entries'] as $name => $e) {
-            $params[$name] = $entry[$e];
+            if (! empty($entry[$e])) {
+                $params[$name] = $entry[$e];
+            }
         }
 
-        if (!$contact_id) {
+        if (! $contact_id) {
             $params['api.Email.create'] = [
                 'email' => $email,
                 'contact_id' => '$value.id',
@@ -165,21 +175,23 @@ class CiviCRM
             if (isset($config['phone']['location_type_id'])) {
                 $phone['location_type_id'] = $config['phone']['location_type_id'];
             }
-            $params['api.Phone.create'] = $phone;
+            if ($phone['phone']) {
+                $params['api.Phone.create'] = $phone;
+            }
         }
 
         if (isset($config['tags'])) {
             $tags = [];
             if (isset($config['tags']['entries'])) {
                 foreach ($config['grtagsoups']['entries'] as $name => $e) {
-                    if ($entry[$e] && !$this->tagExists($contact_id, $entry[$e])) {
+                    if ($entry[$e] && ! $this->tagExists($contact_id, $entry[$e])) {
                         $tags[] = $entry[$e];
                     }
                 }
             }
             if (isset($config['tags']['values'])) {
-                foreach($config['tags']['values'] as $tagId) {
-                    if (!$this->tagExists($contact_id, $tagId)) {
+                foreach ($config['tags']['values'] as $tagId) {
+                    if (! $this->tagExists($contact_id, $tagId)) {
                         $tags[] = $tagId;
                     }
                 }
@@ -229,50 +241,14 @@ class CiviCRM
         }
 
         if (isset($config['activity'])) {
-            $activity = [
-                'source_contact_id' => '$value.id',
-                'activity_type_id' => $config['activity']['type'],
-                'target_id' => '$value.id',
-            ];
-            if (isset($config['activity']['entries'])) {
-                foreach ($config['activity']['entries'] as $name => $e) {
-                    $activity[$name] = $entry[$e];
-                }
+            $params['api.activity.create'] = $this->getActivity($config['activity'], $entry);
+        }
+        if (isset($config['activities'])) {
+            $i = 1;
+            foreach ($config['activities'] as $activity) {
+                $params['api.activity.create' . ($i === 1 ? '' : ".$i")] = $this->getActivity($activity, $entry);
+                $i++;
             }
-            if (isset($config['activity']['subject'])) {
-                $activity['subject'] = $config['activity']['subject'];
-            }
-            if (isset($config['activity']['assignee'])) {
-                $activity['assignee_id'] = $config['activity']['assignee'];
-            }
-            if (isset($config['activity']['campaign'])) {
-                $activity['campaign_id'] = $config['activity']['campaign'];
-            }
-            if (isset($config['activity']['scheduled'])) {
-                $s = $config['activity']['scheduled'];
-                $scheduled_activity = [
-                    'source_contact_id' => '[ID]',
-                    'activity_type_id' => $s['type'],
-                    'target_id' => '[ID]',
-                    'activity_date_time' => date('Y-m-d', strtotime($s['date'])),
-                    'status_id' => 'Scheduled',
-                ];
-                if (isset($s['subject'])) {
-                    $scheduled_activity['subject'] = $config['activity']['subject'];
-                }
-                if (isset($s['assignee'])) {
-                    $scheduled_activity['assignee_id'] = $s['assignee'];
-                }
-                if (isset($s['campaign'])) {
-                    $scheduled_activity['campaign_id'] = $s['campaign'];
-                }
-                if (isset($s['entries'])) {
-                    foreach ($s['entries'] as $name => $e) {
-                        $scheduled_activity[$name] = $entry[$e];
-                    }
-                }
-            }
-            $params['api.activity.create'] = $activity;
         }
 
         return $params;
@@ -307,7 +283,7 @@ class CiviCRM
 
     public function tagExists($entityId, $tagId, $entityTable = 'Contact'): bool
     {
-        if (!$entityId) {
+        if (! $entityId) {
             return false;
         }
 
@@ -318,5 +294,184 @@ class CiviCRM
         ]);
 
         return $exists['count'] > 0;
+    }
+
+    protected function getActivity($activityConfig, $entry)
+    {
+        $activity = [
+            'source_contact_id' => '$value.id',
+            'activity_type_id' => $activityConfig['type'],
+            'target_id' => '$value.id',
+        ];
+
+        if (isset($activityConfig['entries'])) {
+            foreach ($activityConfig['entries'] as $name => $e) {
+                $activity[$name] = $entry[$e];
+            }
+        }
+
+        if (isset($activityConfig['subject'])) {
+            $activity['subject'] = $activityConfig['subject'];
+        }
+        if (isset($activityConfig['assignee'])) {
+            $activity['assignee_id'] = $activityConfig['assignee'];
+        }
+        if (isset($activityConfig['campaign'])) {
+            $activity['campaign_id'] = $activityConfig['campaign'];
+        }
+        if (isset($activityConfig['details'])) {
+            $activity['details'] = $activityConfig['details'];
+        }
+
+        if (isset($activityConfig['scheduled'])) {
+            $s = $activityConfig['scheduled'];
+            $scheduled_activity = [
+                'source_contact_id' => '[ID]',
+                'activity_type_id' => $s['type'],
+                'target_id' => '[ID]',
+                'activity_date_time' => date('Y-m-d', strtotime($s['date'])),
+                'status_id' => 'Scheduled',
+            ];
+            if (isset($s['subject'])) {
+                $scheduled_activity['subject'] = $activityConfig['subject'];
+            }
+            if (isset($s['assignee'])) {
+                $scheduled_activity['assignee_id'] = $s['assignee'];
+            }
+            if (isset($s['campaign'])) {
+                $scheduled_activity['campaign_id'] = $s['campaign'];
+            }
+            if (isset($s['entries'])) {
+                foreach ($s['entries'] as $name => $e) {
+                    $scheduled_activity[$name] = $entry[$e];
+                }
+            }
+        }
+
+        return $activity;
+    }
+
+    /**
+     * Handle form pre-rend (`gform_pre_render`) event for Gravity Forms
+     *
+     * @param array $form The form being processed.
+     * @return array
+     */
+    public function setCountries($form, $addressConfig)
+    {
+        if (! isset($addressConfig['entries']['country_id'])) {
+            return $form;
+        }
+
+        if (! ($gf_field = \GFAPI::get_field($form, $addressConfig['entries']['country_id']))) {
+            return $form;
+        }
+
+        $choices = [];
+        $countries = \Civi\Api4\Country::get(false)
+            ->execute();
+        foreach ($countries as $country) {
+            $choices[] = ['text' => $country['name'], 'value' => $country['id']];
+        }
+        $gf_field->choices = $choices;
+        $gf_field->defaultValue = 1107;
+
+        if (isset($addressConfig['entries']['state_province_id'])) {
+            $country_id = rgpost('input_' . str_replace('.', '_', $addressConfig['entries']['country_id']));
+            $form = $this->setProvinces($form, $addressConfig['entries']['state_province_id'], empty($country_id) ? $gf_field->defaultValue : $country_id);
+        }
+
+        return $form;
+    }
+    public function setProvinces($form, $field_id, $country_id)
+    {
+        if (! $form['id']) {
+            return $form;
+        }
+
+        if (! ($gf_field = \GFAPI::get_field($form, $field_id))) {
+            return $form;
+        }
+        $gf_field->choices = $this->ajaxProvinces($country_id);
+        return $form;
+    }
+
+    public function countriesInitScript($form, $addressConfig)
+    {
+        if (! isset($addressConfig['entries']['country_id'])) {
+            return $form;
+        }
+
+        $countryId = $addressConfig['entries']['country_id'];
+        $provinceId = $addressConfig['entries']['state_province_id'];        
+        if (! ($gf_field = \GFAPI::get_field($form, $countryId))) {
+            return $form;
+        }
+        $form_id = $form['id'];
+        $ajax_url = admin_url('admin-ajax.php');
+
+        ob_start(); ?>
+(function() {
+  var form = document.getElementById('gform_<?php echo $form_id ?>');
+  if (!form) return;
+
+  var countrySelect = form.querySelector('select[name="input_<?php echo $countryId ?>"]');
+  var provinceSelect = form.querySelector('[name="input_<?php echo $provinceId ?>"]');
+
+  if (!countrySelect || !provinceSelect) return;
+
+  countrySelect.addEventListener("change", function(event) {
+    var country = event.target.value;
+    var params = {
+      action: 'gfcivicrm_provinces',
+      country: country,
+    };
+
+    // Svuota select province
+    while (provinceSelect.firstChild) {
+      provinceSelect.removeChild(provinceSelect.firstChild);
+    }
+
+    var request = new XMLHttpRequest();
+    request.open('POST', '<?php echo esc_url($ajax_url); ?>', true);
+    request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    request.onload = function() {
+      if (this.status >= 200 && this.status < 400) {
+        try {
+          var data = JSON.parse(this.response).data;
+          data.forEach(function(entry) {
+            provinceSelect.add(new Option(entry.text, entry.value));
+          });
+        } catch(e) {
+          console.error("Errore parsing JSON:", this.response);
+        }
+      } else {
+        console.error("Errore AJAX:", this.response);
+      }
+    };
+    request.onerror = function() {
+      console.error("Errore di connessione AJAX");
+    };
+    request.send(new URLSearchParams(params).toString());
+  });
+})();
+<?php
+        $script = ob_get_clean();
+
+        \GFFormDisplay::add_init_script($form['id'], 'countries_script', \GFFormDisplay::ON_PAGE_RENDER, $script);
+
+        return $form;
+    }
+
+    public function ajaxProvinces($country_id)
+    {
+        $choices = [];
+        $stateProvinces = \Civi\Api4\StateProvince::get(false)
+            ->addWhere('country_id', '=', $country_id)
+            ->execute();
+        foreach ($stateProvinces as $province) {
+            $choices[] = ['text' => $province['name'], 'value' => $province['id']];
+        }
+        return $choices;
     }
 }
