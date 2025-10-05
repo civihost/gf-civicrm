@@ -109,6 +109,30 @@ add_filter('gform_register_init_scripts', function ($form) use ($settings, $civi
     return $form;
 }, 998);
 
+add_filter('gform_pre_validation', function ($form) use ($settings, $civicrm) {
+    if (! isset($settings['gravity_forms'][$form['id']])) {
+        return $form;
+    }
+
+    $config = $settings['gravity_forms'][$form['id']];
+    if (isset($config['address'])) {
+        $form = $civicrm->setCountryProvinces($form, $config['address']);
+    }
+    return $form;
+});
+
+add_filter('gform_pre_submission_filter', function ($form) use ($settings, $civicrm) {
+    if (! isset($settings['gravity_forms'][$form['id']])) {
+        return $form;
+    }
+
+    $config = $settings['gravity_forms'][$form['id']];
+    if (isset($config['address'])) {
+        $form = $civicrm->setCountryProvinces($form, $config['address']);
+    }
+    return $form;
+});
+
 add_action('wp_ajax_gfcivicrm_provinces', function () use ($civicrm) {
     if (isset($_POST['country'])) {
         $choices = $civicrm->ajaxProvinces($_POST['country']);
@@ -146,7 +170,7 @@ add_filter('gform_paypal_request', function ($url, $form, $entry) use ($settings
     parse_str($query, $qs_param);
     $qs_param['notify_url'] = $settings['paypal_ipn']; // update notify_url querystring parameter to new value
 
-    $contribution = createContactFromGF($entry, $form_settings, 'paypal');
+    $contribution = $civicrm->createContactFromGF($entry, $form_settings, 'paypal');
     if ($contribution) {
         $qs_param['custom'] = json_encode($contribution);
         $qs_param['invoice'] = $contribution['invoice_id'];

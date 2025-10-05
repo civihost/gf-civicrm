@@ -137,7 +137,15 @@ class CiviCRM
     public function createContactParams($entry, $config)
     {
         $email = $entry[$config['email']['entries']['email']];
-        $contact_id = $this->getContactIdFromEmail($email);
+        if (isset($config['dedupe'])) {
+            $params = [];
+            foreach ($config['dedupe'] as $d) {
+                $params[substr($d, strrpos($d, '.') + 1)] = $entry[self::data_get($config, $d)];
+            }
+            $contact_id = $this->getContactId($params);
+        } else {
+            $contact_id = $this->getContactIdFromEmail($email);
+        }
 
         $params = [
             'id' => $contact_id,
@@ -178,6 +186,29 @@ class CiviCRM
             if ($phone['phone']) {
                 $params['api.Phone.create'] = $phone;
             }
+        }
+
+        if (isset($config['address'])) {
+            $address = [
+                'contact_id' => '$value.id',
+            ];
+            if (isset($config['address']['entries'])) {
+                foreach ($config['address']['entries'] as $name => $e) {
+                    if (! empty($entry[$e])) {
+                        $address[$name] = $entry[$e];
+                    }
+                }
+            }
+            if (isset($config['address']['is_primary'])) {
+                $address['is_primary'] = $config['address']['is_primary'];
+            }
+            if (isset($config['address']['location_type_id'])) {
+                $address['location_type_id'] = $config['address']['location_type_id'];
+            }
+            if (isset($config['address']['country_id'])) {
+                $address['country_id'] = $config['address']['country_id'];
+            }
+            $params['api.address.create'] = $address;
         }
 
         if (isset($config['tags'])) {
@@ -241,12 +272,12 @@ class CiviCRM
         }
 
         if (isset($config['activity'])) {
-            $params['api.activity.create'] = $this->getActivity($config['activity'], $entry);
+            $params['api.activity.create'] = $this->buildActivity($config['activity'], $entry);
         }
         if (isset($config['activities'])) {
             $i = 1;
             foreach ($config['activities'] as $activity) {
-                $params['api.activity.create' . ($i === 1 ? '' : ".$i")] = $this->getActivity($activity, $entry);
+                $params['api.activity.create' . ($i === 1 ? '' : ".$i")] = $this->buildActivity($activity, $entry);
                 $i++;
             }
         }
@@ -266,6 +297,38 @@ class CiviCRM
             }
         } catch (\Exception $e) {
             $error = $e->getMessage();
+        }
+        return 0;
+    }
+
+    public function getContactId($params)
+    {
+        $where = [];
+        if (isset($params['email'])) {
+            $where[] = ['email.email', 'LIKE', $params['email']];
+            $where[] = ['email.is_primary', '=', true];
+        }
+        if (isset($params['first_name'])) {
+            $where[] = ['first_name', 'LIKE', $params['first_name']];
+        }
+        if (isset($params['last_name'])) {
+            $where[] = ['last_name', 'LIKE', $params['last_name']];
+        }
+        try {
+            $contacts = $this->apiWrapper->civicrm_api4('Contact', 'get', [
+                'select' => ['id'],
+                'join'   => [
+                    ['Email AS email', 'LEFT', ['email.contact_id', '=', 'id']],
+                ],
+                'where'  => $where,
+            ]);
+            if (isset($contacts[0])) {
+                return $contacts[0]['id'];
+            }
+        } catch (\Exception $e) {
+            $error = $e->getMessage();
+            self::log($where);
+            throw new \Exception('gf-civicrm plugin getContactId: ' . $error);
         }
         return 0;
     }
@@ -296,7 +359,7 @@ class CiviCRM
         return $exists['count'] > 0;
     }
 
-    protected function getActivity($activityConfig, $entry)
+    protected function buildActivity($activityConfig, $entry)
     {
         $activity = [
             'source_contact_id' => '$value.id',
@@ -367,9 +430,9 @@ class CiviCRM
             return $form;
         }
 
+        $countries = $this->apiWrapper->civicrm_api4('Country', 'get');
+
         $choices = [];
-        $countries = \Civi\Api4\Country::get(false)
-            ->execute();
         foreach ($countries as $country) {
             $choices[] = ['text' => $country['name'], 'value' => $country['id']];
         }
@@ -383,6 +446,24 @@ class CiviCRM
 
         return $form;
     }
+
+    public function setCountryProvinces($form, $addressConfig)
+    {
+        if (! isset($addressConfig['entries']['state_province_id']) || ! isset($addressConfig['entries']['country_id'])) {
+            return $form;
+        }
+
+        $country_id = rgpost('input_' . str_replace('.', '_', $addressConfig['entries']['country_id']));
+
+        foreach ($form['fields'] as &$field) {
+            if ($field->id == $addressConfig['entries']['state_province_id']) {
+                $field->choices = $this->ajaxProvinces($country_id);
+            }
+        }
+
+        return $form;
+    }
+
     public function setProvinces($form, $field_id, $country_id)
     {
         if (! $form['id']) {
@@ -403,7 +484,7 @@ class CiviCRM
         }
 
         $countryId = $addressConfig['entries']['country_id'];
-        $provinceId = $addressConfig['entries']['state_province_id'];        
+        $provinceId = $addressConfig['entries']['state_province_id'];
         if (! ($gf_field = \GFAPI::get_field($form, $countryId))) {
             return $form;
         }
@@ -440,7 +521,7 @@ class CiviCRM
         try {
           var data = JSON.parse(this.response).data;
           data.forEach(function(entry) {
-            provinceSelect.add(new Option(entry.text, entry.value));
+            provinceSelecte).add(new Option(entry.text, entry.valu);
           });
         } catch(e) {
           console.error("Errore parsing JSON:", this.response);
@@ -465,13 +546,43 @@ class CiviCRM
 
     public function ajaxProvinces($country_id)
     {
+        $stateProvinces = $this->apiWrapper->civicrm_api4('StateProvince', 'get', [
+            'where'  => [
+                ['country_id', '=', $country_id],
+            ],
+        ]);
+
         $choices = [];
-        $stateProvinces = \Civi\Api4\StateProvince::get(false)
-            ->addWhere('country_id', '=', $country_id)
-            ->execute();
         foreach ($stateProvinces as $province) {
             $choices[] = ['text' => $province['name'], 'value' => $province['id']];
         }
         return $choices;
+    }
+
+    /**
+     * Retrieve a value from a nested array/object using "dot" notation.
+     *
+     * @param  array|object  $target
+     * @param  string|null   $key
+     * @param  mixed         $default
+     * @return mixed
+     */
+    public static function data_get($target, $key, $default = null)
+    {
+        if ($key === null) {
+            return $target;
+        }
+
+        foreach (explode('.', $key) as $segment) {
+            if (is_array($target) && array_key_exists($segment, $target)) {
+                $target = $target[$segment];
+            } elseif (is_object($target) && isset($target->{$segment})) {
+                $target = $target->{$segment};
+            } else {
+                return $default;
+            }
+        }
+
+        return $target;
     }
 }

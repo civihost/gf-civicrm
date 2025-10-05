@@ -30,7 +30,7 @@ class CiviCRMApiWrapper
      *
      * @throws CRM_Core_Exception
      *
-     * @return array|int
+     * @return array
      */
     public function civicrm_api3(string $entity, string $action, array $params = [])
     {
@@ -60,6 +60,51 @@ class CiviCRMApiWrapper
             $result = civicrm_api3($entity, $action, $params);
         }
         if ($result['is_error']) {
+            throw new \Exception(print_r($result, true));
+        }
+        return $result;
+    }
+
+    /**
+     * Version 4 wrapper for civicrm_api.
+     *
+     * @param string $entity Type of entities to deal with.
+     * @param string $action Create, get, delete or some special action name.
+     * @param array $params Array to be passed to function.
+     *
+     * @throws CRM_Core_Exception
+     *
+     * @return array
+     */
+    public function civicrm_api4(string $entity, string $action, array $params = [])
+    {
+        if ($this->is_external) {
+            // @todo
+            //$url = Config::get('external.api4_rest_url') . $entity . '/' . $action;
+            //$request = stream_context_create([
+            //    'http' => [
+            //        'method' => 'POST',
+            //        'header' => [
+            //            'Content-Type: application/x-www-form-urlencoded',
+            //            'X-Civi-Auth: Bearer ' . Config::get('external.api_key'),
+            //        ],
+            //        'content' => http_build_query(['params' => json_encode($params)]),
+            //    ]
+            //]);
+            //$result = json_decode(file_get_contents($url, FALSE, $request), TRUE);
+            //
+            //if (isset($result['values'])) {
+            //    return $result['values'];
+            //} else {
+            //    throw new \Exception(print_r($result, true));
+            //}
+        } else {
+            if (! isset($params['checkPermissions'])) {
+                $params['checkPermissions'] = false;
+            }
+            $result = (array) civicrm_api4($entity, $action, $params);
+        }
+        if (isset($result['error_message'])) {
             throw new \Exception(print_r($result, true));
         }
         return $result;
